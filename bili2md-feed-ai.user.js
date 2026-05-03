@@ -346,20 +346,15 @@
   //  样式
   // ═══════════════════════════════════════════════════
   GM_addStyle(`
+    /* ── 基础：实色深色（默认） ── */
     #bsub-panel {
       position: fixed; bottom: 80px; right: 20px; z-index: 99999;
       font-family: 'PingFang SC', 'Hiragino Sans GB', sans-serif;
       color: rgba(255,255,255,0.92);
-      background: rgba(255,255,255,0.12);
-      backdrop-filter: blur(40px) saturate(180%);
-      -webkit-backdrop-filter: blur(40px) saturate(180%);
-      border: 1px solid rgba(255,255,255,0.25);
-      border-bottom-color: rgba(255,255,255,0.08);
-      box-shadow:
-        0 0 0 0.5px rgba(255,255,255,0.15) inset,
-        0 2px 8px rgba(0,0,0,0.08) inset,
-        0 20px 60px rgba(0,0,0,0.35),
-        0 4px 16px rgba(0,0,0,0.2);
+      background: rgba(22,22,24,0.96);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-bottom-color: rgba(255,255,255,0.06);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.28);
       border-radius: 100px;
       padding: 8px 14px;
       min-width: 0;
@@ -368,9 +363,27 @@
       flex-direction: column-reverse;
       transition:
         min-width 0.38s cubic-bezier(0.32,0,0.15,1),
-        border-radius 0.38s cubic-bezier(0.32,0,0.15,1);
+        border-radius 0.38s cubic-bezier(0.32,0,0.15,1),
+        background 0.25s ease,
+        border-color 0.25s ease,
+        box-shadow 0.25s ease;
     }
     #bsub-panel.expanded { padding: 14px 16px; min-width: 260px; border-radius: 22px; }
+
+    /* ── 磨砂玻璃模式（可选） ── */
+    #bsub-panel.glass {
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(40px) saturate(180%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      border-color: rgba(255,255,255,0.25);
+      border-bottom-color: rgba(255,255,255,0.08);
+      box-shadow:
+        0 0 0 0.5px rgba(255,255,255,0.15) inset,
+        0 2px 8px rgba(0,0,0,0.08) inset,
+        0 20px 60px rgba(0,0,0,0.35),
+        0 4px 16px rgba(0,0,0,0.2);
+    }
+
     #bsub-head { margin:0; font-size:15px; font-weight:600; color:rgba(255,255,255,0.92); display:flex; align-items:center; gap:8px; white-space:nowrap; }
     #bsub-toggle { margin-left:auto; font-size:12px; color:rgba(255,255,255,0.48); background:none; border:none; cursor:pointer; padding:0; }
     #bsub-body {
@@ -381,19 +394,55 @@
         opacity 0.28s ease,
         transform 0.32s cubic-bezier(0.32,0,0.15,1);
     }
-    #bsub-panel.expanded #bsub-body { max-height: 400px; opacity: 1; transform: scaleY(1); margin-bottom: 12px; padding-bottom: 16px; }
+    #bsub-panel.expanded #bsub-body { max-height: 420px; opacity: 1; transform: scaleY(1); margin-bottom: 12px; padding-bottom: 16px; }
+
+    /* ── 磨砂切换按钮 ── */
+    #bsub-tools { display:flex; justify-content:flex-end; margin-bottom:8px; }
+    #bsub-glass-btn {
+      width:22px; height:22px; border-radius:50%;
+      border:1px solid rgba(255,255,255,0.18);
+      background:rgba(255,255,255,0.06);
+      color:rgba(255,255,255,0.38);
+      font-size:11px; line-height:1; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      padding:0; transition:all 0.18s ease; flex-shrink:0;
+    }
+    #bsub-glass-btn:hover { border-color:rgba(255,255,255,0.35); color:rgba(255,255,255,0.72); background:rgba(255,255,255,0.12); }
+    #bsub-panel.glass #bsub-glass-btn { background:rgba(0,174,236,0.22); border-color:rgba(0,174,236,0.55); color:rgba(0,200,255,0.9); }
+
     #bsub-status { font-size:13px; color:rgba(255,255,255,0.48); margin-bottom:12px; line-height:1.7; }
     .bsub-row { display:flex; align-items:center; gap:4px; }
     .bsub-badge { display:inline-block; border-radius:20px; padding:0 7px; font-weight:700; font-size:12px; }
     .bsub-badge-sub  { background:rgba(0,174,236,0.22); color:rgba(0,174,236,0.95); border:1px solid rgba(0,174,236,0.35); }
     .bsub-badge-cmt  { background:rgba(255,180,0,0.22);  color:rgba(230,168,0,0.95);  border:1px solid rgba(255,180,0,0.35); }
     .bsub-badge-none { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.35); }
-    .bsub-opts { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
-    .bsub-opt-row { display:flex; align-items:flex-start; gap:7px; cursor:pointer; }
-    .bsub-opt-row input[type=checkbox] { margin:2px 0 0; accent-color:#00aeec; cursor:pointer; flex-shrink:0; }
+    .bsub-opts { display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+    .bsub-opt-row { display:flex; align-items:center; gap:9px; cursor:pointer; }
+
+    /* ── 自定义 Toggle Switch ── */
+    .bsub-opt-row input[type=checkbox] {
+      -webkit-appearance: none; appearance: none;
+      width:28px; height:16px; border-radius:8px;
+      background:rgba(255,255,255,0.12);
+      border:1.5px solid rgba(255,255,255,0.16);
+      cursor:pointer; flex-shrink:0;
+      position:relative;
+      transition:background 0.22s ease, border-color 0.22s ease;
+    }
+    .bsub-opt-row input[type=checkbox]::before {
+      content:''; display:block;
+      width:11px; height:11px; border-radius:50%;
+      background:rgba(255,255,255,0.48);
+      position:absolute; top:1px; left:1px;
+      box-shadow:0 1px 3px rgba(0,0,0,0.25);
+      transition:transform 0.22s cubic-bezier(0.32,0,0.15,1), background 0.22s ease;
+    }
+    .bsub-opt-row input[type=checkbox]:checked { background:rgba(0,174,236,0.65); border-color:rgba(0,174,236,0.8); }
+    .bsub-opt-row input[type=checkbox]:checked::before { transform:translateX(12px); background:#fff; }
+
     .bsub-opt-label { display:flex; flex-direction:column; gap:2px; }
     .bsub-opt-name { font-size:14px; color:rgba(255,255,255,0.92); font-weight:500; }
-    .bsub-opt-hint { font-size:12px; color:rgba(255,255,255,0.40); line-height:1.4; }
+    .bsub-opt-hint { font-size:12px; color:rgba(255,255,255,0.38); line-height:1.4; }
     .bsub-divider { border:none; border-top:1px solid rgba(255,255,255,0.10); margin:10px 0; }
     #bsub-export-btn {
       width:100%; padding:8px 0; cursor:pointer; font-size:14px; font-weight:600;
@@ -410,8 +459,16 @@
     #bsub-export-btn:active { transform:scale(0.97) translateY(0); }
     #bsub-export-btn:disabled { opacity:.55; cursor:default; }
 
-    /* ── light theme ── */
+    /* ── 实色浅色 ── */
     #bsub-panel[data-theme="light"] {
+      background: rgba(252,252,253,0.97);
+      border-color: rgba(0,0,0,0.08);
+      border-bottom-color: rgba(0,0,0,0.05);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
+      color: rgba(0,0,0,0.85);
+    }
+    /* ── 磨砂浅色 ── */
+    #bsub-panel.glass[data-theme="light"] {
       background: rgba(0,0,0,0.07);
       border-color: rgba(0,0,0,0.14);
       border-bottom-color: rgba(0,0,0,0.05);
@@ -420,15 +477,21 @@
         0 2px 8px rgba(0,0,0,0.04) inset,
         0 20px 60px rgba(0,0,0,0.14),
         0 4px 16px rgba(0,0,0,0.08);
-      color: rgba(0,0,0,0.85);
     }
     #bsub-panel[data-theme="light"] #bsub-head   { color: rgba(0,0,0,0.85); }
     #bsub-panel[data-theme="light"] #bsub-toggle { color: rgba(0,0,0,0.42); }
     #bsub-panel[data-theme="light"] #bsub-status { color: rgba(0,0,0,0.45); }
     #bsub-panel[data-theme="light"] .bsub-opt-name { color: rgba(0,0,0,0.85); }
-    #bsub-panel[data-theme="light"] .bsub-opt-hint { color: rgba(0,0,0,0.42); }
+    #bsub-panel[data-theme="light"] .bsub-opt-hint { color: rgba(0,0,0,0.38); }
     #bsub-panel[data-theme="light"] .bsub-badge-none { background:rgba(0,0,0,0.06); color:rgba(0,0,0,0.35); }
     #bsub-panel[data-theme="light"] .bsub-divider { border-top-color: rgba(0,0,0,0.10); }
+    #bsub-panel[data-theme="light"] #bsub-glass-btn { border-color:rgba(0,0,0,0.15); background:rgba(0,0,0,0.04); color:rgba(0,0,0,0.30); }
+    #bsub-panel[data-theme="light"] #bsub-glass-btn:hover { border-color:rgba(0,0,0,0.25); color:rgba(0,0,0,0.55); background:rgba(0,0,0,0.08); }
+    #bsub-panel.glass[data-theme="light"] #bsub-glass-btn { background:rgba(0,174,236,0.15); border-color:rgba(0,174,236,0.4); color:rgba(0,150,210,0.9); }
+    #bsub-panel[data-theme="light"] .bsub-opt-row input[type=checkbox] { background:rgba(0,0,0,0.08); border-color:rgba(0,0,0,0.14); }
+    #bsub-panel[data-theme="light"] .bsub-opt-row input[type=checkbox]::before { background:rgba(0,0,0,0.32); }
+    #bsub-panel[data-theme="light"] .bsub-opt-row input[type=checkbox]:checked { background:rgba(0,174,236,0.70); border-color:rgba(0,174,236,0.85); }
+    #bsub-panel[data-theme="light"] .bsub-opt-row input[type=checkbox]:checked::before { background:#fff; }
   `);
 
   // ═══════════════════════════════════════════════════
@@ -467,6 +530,7 @@
     p.innerHTML = `
       <h3 id="bsub-head"><span>📝</span><span>字幕导出</span><button id="bsub-toggle">展开</button></h3>
       <div id="bsub-body">
+        <div id="bsub-tools"><button id="bsub-glass-btn" title="切换磨砂效果">✦</button></div>
         <div id="bsub-status">
           <div class="bsub-row">字幕&nbsp;<span class="bsub-badge bsub-badge-none" id="bsub-sub-badge">等待中</span></div>
           <div class="bsub-row">评论&nbsp;<span class="bsub-badge bsub-badge-none" id="bsub-cmt-badge">等待中</span></div>
@@ -500,8 +564,14 @@
     `;
     document.body.appendChild(p);
     sampleTheme(p);
+    if (localStorage.getItem('bsub-glass') === 'true') p.classList.add('glass');
     document.getElementById('bsub-head').addEventListener('click', togglePanel);
     document.getElementById('bsub-export-btn').addEventListener('click', e => { e.stopPropagation(); doExport(); });
+    document.getElementById('bsub-glass-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      const on = p.classList.toggle('glass');
+      localStorage.setItem('bsub-glass', on);
+    });
 
     (function enableDrag(panel) {
       const head = document.getElementById('bsub-head');
