@@ -1,0 +1,6 @@
+# Editor
+.idea/
+.vscode/
+
+# claude code
+.claude/

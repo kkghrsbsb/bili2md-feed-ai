@@ -1,0 +1,7 @@
+[book]
+title = "bili2md-feed-ai"
+authors = ["kkghrsbsb"]
+language = "en"
+
+[output.html]
+git-repository-url = "https://github.com/kkghrsbsb/bili2md-feed-ai"
