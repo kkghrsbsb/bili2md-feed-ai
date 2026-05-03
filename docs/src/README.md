@@ -2,6 +2,8 @@
 
 一个 Tampermonkey 油猴脚本，运行在 B 站视频页面，自动捕获 AI 字幕、视频元数据、高质量评论，一键导出为 Markdown，方便直接喂给 AI 提问或做笔记。
 
+**当前版本：v2.0.0**
+
 **支持页面：** `bilibili.com/video/*`（普通视频）、`bilibili.com/bangumi/play/*`（番剧）
 
 ---

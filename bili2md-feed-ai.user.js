@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         B站AI字幕抓取 & 导出MD
-// @namespace    https://github.com/your-namespace
-// @version      1.9.0
+// @name         bili2md-feed-ai
+// @namespace    https://github.com/kkghrsbsb/bili2md-feed-ai
+// @version      2.0.0
 // @description  自动抓取B站AI字幕和热门评论，连同视频信息一起导出为Markdown，方便喂给AI提问
-// @author       You
+// @author       kkghrsbsb
 // @match        *://www.bilibili.com/video/*
 // @match        *://www.bilibili.com/bangumi/play/*
 // @grant        GM_addStyle
@@ -348,43 +348,119 @@
   GM_addStyle(`
     #bsub-panel {
       position: fixed; bottom: 80px; right: 20px; z-index: 99999;
-      font-family: 'PingFang SC', 'Hiragino Sans GB', sans-serif; font-size: 13px;
-      color: #e8e8e8; background: rgba(15,16,22,0.93);
-      border: 1px solid rgba(255,255,255,0.10); border-radius: 12px; padding: 8px 14px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.55); backdrop-filter: blur(14px);
-      user-select: none; min-width: 0;
+      font-family: 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+      color: rgba(255,255,255,0.92);
+      background: rgba(255,255,255,0.12);
+      backdrop-filter: blur(40px) saturate(180%);
+      -webkit-backdrop-filter: blur(40px) saturate(180%);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-bottom-color: rgba(255,255,255,0.08);
+      box-shadow:
+        0 0 0 0.5px rgba(255,255,255,0.15) inset,
+        0 2px 8px rgba(0,0,0,0.08) inset,
+        0 20px 60px rgba(0,0,0,0.35),
+        0 4px 16px rgba(0,0,0,0.2);
+      border-radius: 100px;
+      padding: 8px 14px;
+      min-width: 0;
+      user-select: none;
+      display: flex;
+      flex-direction: column-reverse;
+      transition:
+        min-width 0.38s cubic-bezier(0.32,0,0.15,1),
+        border-radius 0.38s cubic-bezier(0.32,0,0.15,1);
     }
-    #bsub-panel.expanded { padding: 14px 16px; min-width: 230px; }
-    #bsub-head { margin:0; font-size:13px; font-weight:600; color:#fff; display:flex; align-items:center; gap:8px; cursor:pointer; white-space:nowrap; }
-    #bsub-toggle { margin-left:auto; font-size:11px; color:#666; background:none; border:none; cursor:pointer; padding:0; }
-    #bsub-body { display:none; margin-top:12px; }
-    #bsub-panel.expanded #bsub-body { display:block; }
-    #bsub-status { font-size:11.5px; color:#888; margin-bottom:12px; line-height:1.7; }
+    #bsub-panel.expanded { padding: 14px 16px; min-width: 260px; border-radius: 22px; }
+    #bsub-head { margin:0; font-size:15px; font-weight:600; color:rgba(255,255,255,0.92); display:flex; align-items:center; gap:8px; white-space:nowrap; }
+    #bsub-toggle { margin-left:auto; font-size:12px; color:rgba(255,255,255,0.48); background:none; border:none; cursor:pointer; padding:0; }
+    #bsub-body {
+      max-height: 0; opacity: 0; overflow: hidden;
+      transform: scaleY(0.96); transform-origin: bottom center;
+      transition:
+        max-height 0.38s cubic-bezier(0.32,0,0.15,1),
+        opacity 0.28s ease,
+        transform 0.32s cubic-bezier(0.32,0,0.15,1);
+    }
+    #bsub-panel.expanded #bsub-body { max-height: 400px; opacity: 1; transform: scaleY(1); margin-bottom: 12px; padding-bottom: 16px; }
+    #bsub-status { font-size:13px; color:rgba(255,255,255,0.48); margin-bottom:12px; line-height:1.7; }
     .bsub-row { display:flex; align-items:center; gap:4px; }
-    .bsub-badge { display:inline-block; border-radius:20px; padding:0 7px; font-weight:700; font-size:11px; }
-    .bsub-badge-sub  { background:rgba(0,174,236,0.15); color:#00aeec; }
-    .bsub-badge-cmt  { background:rgba(255,180,0,0.15); color:#e6a800; }
-    .bsub-badge-none { background:rgba(255,255,255,0.06); color:#555; }
+    .bsub-badge { display:inline-block; border-radius:20px; padding:0 7px; font-weight:700; font-size:12px; }
+    .bsub-badge-sub  { background:rgba(0,174,236,0.22); color:rgba(0,174,236,0.95); border:1px solid rgba(0,174,236,0.35); }
+    .bsub-badge-cmt  { background:rgba(255,180,0,0.22);  color:rgba(230,168,0,0.95);  border:1px solid rgba(255,180,0,0.35); }
+    .bsub-badge-none { background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.35); }
     .bsub-opts { display:flex; flex-direction:column; gap:8px; margin-bottom:12px; }
     .bsub-opt-row { display:flex; align-items:flex-start; gap:7px; cursor:pointer; }
     .bsub-opt-row input[type=checkbox] { margin:2px 0 0; accent-color:#00aeec; cursor:pointer; flex-shrink:0; }
     .bsub-opt-label { display:flex; flex-direction:column; gap:2px; }
-    .bsub-opt-name { font-size:12.5px; color:#ddd; font-weight:500; }
-    .bsub-opt-hint { font-size:11px; color:#555; line-height:1.4; }
-    .bsub-divider { border:none; border-top:1px solid rgba(255,255,255,0.07); margin:10px 0; }
+    .bsub-opt-name { font-size:14px; color:rgba(255,255,255,0.92); font-weight:500; }
+    .bsub-opt-hint { font-size:12px; color:rgba(255,255,255,0.40); line-height:1.4; }
+    .bsub-divider { border:none; border-top:1px solid rgba(255,255,255,0.10); margin:10px 0; }
     #bsub-export-btn {
-      width:100%; padding:8px 0; border-radius:8px; border:none; cursor:pointer;
-      font-size:13px; font-weight:600; background:linear-gradient(90deg,#00aeec,#0080cc); color:#fff;
-      transition:filter .15s,transform .1s,opacity .15s;
+      width:100%; padding:8px 0; cursor:pointer; font-size:14px; font-weight:600;
+      background:rgba(0,174,236,0.28);
+      border:1px solid rgba(0,174,236,0.5);
+      border-bottom-color:rgba(0,174,236,0.2);
+      box-shadow:0 1px 0 rgba(255,255,255,0.15) inset;
+      color:rgba(255,255,255,0.95);
+      backdrop-filter:blur(8px);
+      border-radius:12px;
+      transition:all 0.15s ease;
     }
-    #bsub-export-btn:hover  { filter:brightness(1.12); }
-    #bsub-export-btn:active { transform:scale(.97); }
+    #bsub-export-btn:hover { background:rgba(0,174,236,0.4); transform:translateY(-1px); box-shadow:0 1px 0 rgba(255,255,255,0.15) inset,0 4px 12px rgba(0,174,236,0.25); }
+    #bsub-export-btn:active { transform:scale(0.97) translateY(0); }
     #bsub-export-btn:disabled { opacity:.55; cursor:default; }
+
+    /* ── light theme ── */
+    #bsub-panel[data-theme="light"] {
+      background: rgba(0,0,0,0.07);
+      border-color: rgba(0,0,0,0.14);
+      border-bottom-color: rgba(0,0,0,0.05);
+      box-shadow:
+        0 0 0 0.5px rgba(0,0,0,0.06) inset,
+        0 2px 8px rgba(0,0,0,0.04) inset,
+        0 20px 60px rgba(0,0,0,0.14),
+        0 4px 16px rgba(0,0,0,0.08);
+      color: rgba(0,0,0,0.85);
+    }
+    #bsub-panel[data-theme="light"] #bsub-head   { color: rgba(0,0,0,0.85); }
+    #bsub-panel[data-theme="light"] #bsub-toggle { color: rgba(0,0,0,0.42); }
+    #bsub-panel[data-theme="light"] #bsub-status { color: rgba(0,0,0,0.45); }
+    #bsub-panel[data-theme="light"] .bsub-opt-name { color: rgba(0,0,0,0.85); }
+    #bsub-panel[data-theme="light"] .bsub-opt-hint { color: rgba(0,0,0,0.42); }
+    #bsub-panel[data-theme="light"] .bsub-badge-none { background:rgba(0,0,0,0.06); color:rgba(0,0,0,0.35); }
+    #bsub-panel[data-theme="light"] .bsub-divider { border-top-color: rgba(0,0,0,0.10); }
   `);
 
   // ═══════════════════════════════════════════════════
   //  面板
   // ═══════════════════════════════════════════════════
+  function sampleTheme(panel) {
+    const rect = panel.getBoundingClientRect();
+    const cx = rect.left + rect.width  / 2;
+    const cy = rect.top  + rect.height / 2;
+    panel.style.visibility = 'hidden';
+    let el = document.elementFromPoint(cx, cy);
+    panel.style.visibility = '';
+    // 向上找第一个不透明背景色
+    while (el && el !== document.documentElement) {
+      const bg = getComputedStyle(el).backgroundColor;
+      if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
+        const m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (m) {
+          const [r, g, b] = [m[1], m[2], m[3]].map(v => {
+            const c = parseInt(v) / 255;
+            return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+          });
+          const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          panel.dataset.theme = L > 0.5 ? 'light' : 'dark';
+          return;
+        }
+      }
+      el = el.parentElement;
+    }
+    panel.dataset.theme = 'dark'; // 兜底：找不到背景色默认暗色
+  }
+
   function createPanel() {
     const p = document.createElement('div');
     p.id = 'bsub-panel';
@@ -423,16 +499,49 @@
       </div>
     `;
     document.body.appendChild(p);
+    sampleTheme(p);
     document.getElementById('bsub-head').addEventListener('click', togglePanel);
     document.getElementById('bsub-export-btn').addEventListener('click', e => { e.stopPropagation(); doExport(); });
+
+    (function enableDrag(panel) {
+      const head = document.getElementById('bsub-head');
+      head.style.cursor = 'grab';
+      head.addEventListener('pointerdown', e => {
+        if (e.target.id === 'bsub-toggle') return;
+        e.preventDefault();
+        head.style.cursor = 'grabbing';
+        const r0 = panel.getBoundingClientRect();
+        const initRight  = window.innerWidth  - r0.right;
+        const initBottom = window.innerHeight - r0.bottom;
+        const sx = e.clientX, sy = e.clientY;
+        let hasMoved = false;
+        let lastThemeAt = 0;
+        const onMove = e => {
+          hasMoved = true;
+          const dx = e.clientX - sx, dy = e.clientY - sy;
+          panel.style.right  = Math.max(8, Math.min(initRight  - dx, window.innerWidth  - 60)) + 'px';
+          panel.style.bottom = Math.max(8, Math.min(initBottom - dy, window.innerHeight - 40)) + 'px';
+          const now = Date.now();
+          if (now - lastThemeAt > 100) { lastThemeAt = now; sampleTheme(panel); }
+        };
+        const onUp = () => {
+          head.style.cursor = 'grab';
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          sampleTheme(panel);
+          if (hasMoved) {
+            head.addEventListener('click', e => e.stopImmediatePropagation(), { once: true, capture: true });
+          }
+        };
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    })(p);
   }
 
   function togglePanel() {
-    const p = document.getElementById('bsub-panel');
-    const b = document.getElementById('bsub-toggle');
-    const ex = !p.classList.contains('expanded');
-    p.classList.toggle('expanded', ex);
-    b.textContent = ex ? '收起' : '展开';
+    const isExpanded = document.getElementById('bsub-panel').classList.toggle('expanded');
+    document.getElementById('bsub-toggle').textContent = isExpanded ? '收起' : '展开';
   }
 
   function updatePanel() {

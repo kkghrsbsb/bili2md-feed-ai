@@ -1,6 +1,6 @@
 # B站AI字幕抓取 & 导出MD — 项目文档
 
-> 当前版本：**v1.9.0** | 文件名：`bili2md-feed-ai.user.js`
+> 当前版本：**v2.0.0** | 文件名：`bili2md-feed-ai.user.js`
 
 ---
 
