@@ -2,9 +2,13 @@
 
 > 一个 Tampermonkey 油猴脚本，自动捕获 B 站 AI 字幕和热门评论，一键导出为 Markdown，方便直接喂给 AI 提问。
 
+<img src="./assets/display_1.gif" width="100%">
+
 ---
 
 ## 功能预览
+
+导出 Markdown 示例：
 
 ```markdown
 # MIT 6.S191 | 深度强化学习
