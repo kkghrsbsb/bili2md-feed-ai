@@ -1,17 +1,63 @@
 // ==UserScript==
 // @name         bili2md-feed-ai
+// @name:zh-CN   B站AI字幕导出为Markdown
 // @namespace    https://github.com/kkghrsbsb/bili2md-feed-ai
 // @version      2.0.0
-// @description  自动抓取B站AI字幕和热门评论，连同视频信息一起导出为Markdown，方便喂给AI提问
+// @description  Capture Bilibili AI subtitles and top comments, then export as Markdown for feeding to AI assistants.
+// @description:zh-CN  自动抓取B站AI字幕和热门评论，连同视频信息一起导出为Markdown，方便喂给AI提问
 // @author       kkghrsbsb
+// @license      MIT
+// @homepageURL  https://github.com/kkghrsbsb/bili2md-feed-ai
+// @supportURL   https://github.com/kkghrsbsb/bili2md-feed-ai/issues
+// @downloadURL  https://raw.githubusercontent.com/kkghrsbsb/bili2md-feed-ai/main/bili2md-feed-ai.user.js
+// @updateURL    https://raw.githubusercontent.com/kkghrsbsb/bili2md-feed-ai/main/bili2md-feed-ai.user.js
 // @match        *://www.bilibili.com/video/*
 // @match        *://www.bilibili.com/bangumi/play/*
 // @grant        GM_addStyle
+// @grant        GM_setValue
+// @grant        GM_getValue
 // @run-at       document-start
 // ==/UserScript==
 
+/*
+ * MIT License
+ *
+ * Copyright (c) 2025 kkghrsbsb
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 (function () {
   'use strict';
+
+  // ═══════════════════════════════════════════════════
+  //  持久化存储（使用 GM_getValue / GM_setValue 替代 localStorage）
+  //  Greasy Fork 要求 @grant 中声明后才能使用对应 API
+  // ═══════════════════════════════════════════════════
+  const Prefs = {
+    get: (key, fallback) => {
+      try { return GM_getValue(key, fallback); } catch (_) { return fallback; }
+    },
+    set: (key, val) => {
+      try { GM_setValue(key, val); } catch (_) {}
+    },
+  };
 
   // ═══════════════════════════════════════════════════
   //  状态
@@ -22,14 +68,18 @@
   let commentObserverStarted = false;
 
   // ═══════════════════════════════════════════════════
-  //  字幕捕获（不变）
+  //  字幕捕获
+  //  @run-at document-start 是必要的：字幕 JSON 在页面初始化时
+  //  通过 fetch/XHR 请求，若脚本晚于此时机注入则无法拦截。
   // ═══════════════════════════════════════════════════
   function tryParseSubtitle(url, text) {
     try {
       const json = JSON.parse(text);
       const body = json?.body ?? json?.data?.body;
       if (!Array.isArray(body) || body.length === 0) return;
-      const lines = body.map(i => ({ from: i.from, to: i.to, content: (i.content ?? '').trim() })).filter(l => l.content);
+      const lines = body
+        .map(i => ({ from: i.from, to: i.to, content: (i.content ?? '').trim() }))
+        .filter(l => l.content);
       const key = url.split('/').pop().split('?')[0] || url;
       if (capturedLangs[key]) return;
       capturedLangs[key] = lines;
@@ -38,6 +88,7 @@
     } catch (_) {}
   }
 
+  // 拦截 fetch
   const _fetch = window.fetch;
   window.fetch = async function (...args) {
     const res = await _fetch.apply(this, args);
@@ -47,12 +98,19 @@
     } catch (_) {}
     return res;
   };
+
+  // 拦截 XHR
   const _open = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function (m, url, ...r) { this._url = url; return _open.call(this, m, url, ...r); };
+  XMLHttpRequest.prototype.open = function (m, url, ...r) {
+    this._url = url;
+    return _open.call(this, m, url, ...r);
+  };
   const _send = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.send = function (...a) {
     this.addEventListener('load', function () {
-      try { if (this._url?.includes('subtitle')) tryParseSubtitle(this._url, this.responseText); } catch (_) {}
+      try {
+        if (this._url?.includes('subtitle')) tryParseSubtitle(this._url, this.responseText);
+      } catch (_) {}
     });
     return _send.apply(this, a);
   };
@@ -63,33 +121,25 @@
   function cleanText(str) {
     if (!str) return '';
     return str
-      .replace(/\[图片\]/g, '').replace(/\{[^}]*\}/g, '')
+      .replace(/\[图片\]/g, '')
+      .replace(/\{[^}]*\}/g, '')
       .replace(/\[(?:[^\]]{1,20})\]/g, '')
-      .replace(/[\u{1F000}-\u{1FFFF}]/gu, '').replace(/[\u{2600}-\u{27BF}]/gu, '')
-      .replace(/[\u{FE00}-\u{FE0F}]/gu, '').replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
-      .replace(/\u200D/gu, '').replace(/\s{2,}/g, ' ').trim();
+      .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+      .replace(/[\u{2600}-\u{27BF}]/gu, '')
+      .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+      .replace(/[\u{1F300}-\u{1FAFF}]/gu, '')
+      .replace(/\u200D/gu, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
   }
 
   // ═══════════════════════════════════════════════════
-  //  从 bili-comment-thread-renderer 的 __data 读评论
-  //
-  //  B站评论 DOM 层级：
-  //  #commentapp > bili-comments
-  //    └─ shadowRoot
-  //         └─ bili-comment-thread-renderer  ← __data 在这里
-  //              .__data.replies[0]  = 主评论数据
-  //              .__data.replies[1+] = 子评论数据（或用 .replies 字段）
-  //
-  //  也可以从 bili-comment-renderer.__data 读单条评论
+  //  从 bili-comment-thread-renderer.__data 读评论
   // ═══════════════════════════════════════════════════
   function readThreadData(threadEl) {
     try {
-      // __data 就是主评论对象本身（经控制台验证）
-      // 字段：rpid, member, content, like, replies(子评论数组), root=0 表示顶级评论
       const d = threadEl.__data;
       if (!d) return;
-
-      // root=0 且 parent=0 才是顶级主评论，排除子评论误入
       if (d.root !== 0 || d.parent !== 0) return;
 
       const rpid = String(d.rpid || d.rpid_str || '');
@@ -101,59 +151,40 @@
       if (!text) return;
 
       const entry = { user, text, likes, sub: [] };
-
-      // 子评论在 d.replies 数组里
       for (const s of (d.replies || []).slice(0, 5)) {
         const st = cleanText(s?.content?.message || '');
         if (!st) continue;
         entry.sub.push({ user: s?.member?.uname || '匿名', text: st, likes: s.like || 0 });
       }
-
       commentMap.set(rpid, entry);
       updatePanel();
     } catch (_) {}
   }
 
-  // 扫描 bili-comments shadowRoot 下所有 thread 元素
   function scanThreads(root) {
+    if (!root) return;
     const threads = root.querySelectorAll('bili-comment-thread-renderer');
     threads.forEach(readThreadData);
   }
 
   // ═══════════════════════════════════════════════════
-  //  启动评论监听
-  //  关键：MutationObserver 必须 observe bili-comments.shadowRoot
-  //  而不是 document，否则无法穿透 Shadow DOM 边界
+  //  启动评论监听（观察 Shadow DOM）
   // ═══════════════════════════════════════════════════
   function startCommentObserver() {
     if (commentObserverStarted) return;
 
-    // 等待 #commentapp > bili-comments 出现
     function tryAttach() {
-      // B站评论区容器：#commentapp 下的 bili-comments 元素
       const biliComments =
         document.querySelector('#commentapp bili-comments') ||
         document.querySelector('bili-comments');
-
-      if (!biliComments) {
-        setTimeout(tryAttach, 500);
-        return;
-      }
+      if (!biliComments) { setTimeout(tryAttach, 500); return; }
 
       const sr = biliComments.shadowRoot;
-      if (!sr) {
-        // shadowRoot 可能还没创建，稍后重试
-        setTimeout(tryAttach, 300);
-        return;
-      }
+      if (!sr) { setTimeout(tryAttach, 300); return; }
 
       commentObserverStarted = true;
-      console.log('[字幕抓取] 找到 bili-comments shadowRoot，开始监听评论');
-
-      // 先扫描已有的
       scanThreads(sr);
 
-      // 监听 shadowRoot 内的 DOM 变化
       const obs = new MutationObserver(() => scanThreads(sr));
       obs.observe(sr, { childList: true, subtree: true });
     }
@@ -162,49 +193,40 @@
   }
 
   // ═══════════════════════════════════════════════════
-  //  兜底：通过 DOM 文本直接读（当 __data 读不到时）
-  //  直接遍历 shadow DOM 文本节点抓评论内容和点赞数
+  //  DOM 文本兜底（当 __data 不可用时）
   // ═══════════════════════════════════════════════════
   function readFromShadowText() {
-    if (commentMap.size > 0) return; // 已有数据，跳过
+    if (commentMap.size > 0) return;
 
     const biliComments =
       document.querySelector('#commentapp bili-comments') ||
       document.querySelector('bili-comments');
     if (!biliComments?.shadowRoot) return;
 
-    // 每个 thread renderer
     const threads = biliComments.shadowRoot.querySelectorAll('bili-comment-thread-renderer');
     threads.forEach((thread, idx) => {
       try {
         const tsr = thread.shadowRoot;
         if (!tsr) return;
-
-        // 主评论
         const commentEl = tsr.querySelector('bili-comment-renderer');
         if (!commentEl?.shadowRoot) return;
         const csr = commentEl.shadowRoot;
 
-        // 用户名
-        const user = csr.querySelector('.user-name, [class*="user-name"], .username')?.textContent?.trim() || `评论${idx+1}`;
-
-        // 正文：bili-rich-text > shadowRoot > #contents
+        const user = csr.querySelector('.user-name, [class*="user-name"], .username')?.textContent?.trim() || `评论${idx + 1}`;
         const richText = csr.querySelector('bili-rich-text');
         const textEl   = richText?.shadowRoot?.querySelector('#contents') || richText;
-        const text     = cleanText(textEl?.textContent || csr.querySelector('[class*="content"], [class*="text"]')?.textContent || '');
-
-        // 点赞数
+        const text     = cleanText(
+          textEl?.textContent ||
+          csr.querySelector('[class*="content"], [class*="text"]')?.textContent || ''
+        );
         const likeEl = csr.querySelector('[class*="like"] span, [class*="like-num"], .like-num');
         const likes  = parseInt(likeEl?.textContent?.replace(/[^0-9]/g, '') || '0') || 0;
 
         if (!text) return;
-
         const rpid = `dom_${idx}_${user}`;
         if (commentMap.has(rpid)) return;
 
         const entry = { user, text, likes, sub: [] };
-
-        // 子评论
         const repliesEl = tsr.querySelector('#replies, bili-comment-replies');
         if (repliesEl) {
           const replyEls = (repliesEl.shadowRoot || repliesEl).querySelectorAll('bili-comment-reply-renderer');
@@ -212,20 +234,19 @@
             if (ri >= 5) return;
             const rsr   = replyEl.shadowRoot || replyEl;
             const rRich = rsr.querySelector('bili-rich-text');
-            const rText = cleanText((rRich?.shadowRoot?.querySelector('#contents') || rRich)?.textContent || rsr.querySelector('[class*="content"]')?.textContent || '');
+            const rText = cleanText(
+              (rRich?.shadowRoot?.querySelector('#contents') || rRich)?.textContent ||
+              rsr.querySelector('[class*="content"]')?.textContent || ''
+            );
             const rUser = rsr.querySelector('.user-name, [class*="user-name"]')?.textContent?.trim() || '匿名';
             if (rText) entry.sub.push({ user: rUser, text: rText, likes: 0 });
           });
         }
-
         commentMap.set(rpid, entry);
       } catch (_) {}
     });
 
-    if (commentMap.size > 0) {
-      console.log(`[字幕抓取] DOM文本兜底读取 ${commentMap.size} 条`);
-      updatePanel();
-    }
+    if (commentMap.size > 0) updatePanel();
   }
 
   // ═══════════════════════════════════════════════════
@@ -242,6 +263,7 @@
     } catch (_) {}
     return null;
   }
+
   function getMetaFromDOM() {
     const title =
       document.querySelector('h1[title]')?.getAttribute('title')?.trim() ||
@@ -255,6 +277,7 @@
     const uploader = document.querySelector('.up-name, .username, [class*="upName"]')?.textContent?.trim() || '';
     return { title, desc, uploader, aid: '' };
   }
+
   function getVideoMeta() {
     const s = getMetaFromState(), d = getMetaFromDOM();
     return {
@@ -274,9 +297,11 @@
   //  Markdown 生成
   // ═══════════════════════════════════════════════════
   function fmtTime(sec) {
-    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
-    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
   function buildMarkdown(meta, lines, comments, opts) {
@@ -309,21 +334,26 @@
         });
       }
     }
-    md += `\n---\n_由「B站AI字幕抓取」脚本导出_\n`;
+    md += `\n---\n_由「bili2md-feed-ai」脚本导出 · https://github.com/kkghrsbsb/bili2md-feed-ai_\n`;
     return md;
   }
 
-  function safeFilename(n) { return n.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 80); }
+  function safeFilename(n) {
+    return n.replace(/[\/\\:*?"<>|]/g, '_').slice(0, 80);
+  }
 
   // ═══════════════════════════════════════════════════
-  //  导出：点击导出按钮时也主动触发一次文本兜底扫描
+  //  导出
   // ═══════════════════════════════════════════════════
   function doExport() {
     const btn = document.getElementById('bsub-export-btn');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ 导出中…'; }
 
-    // 导出前再扫一次（捕获最新加载的评论，兜底文本读取）
-    try { scanThreads(document.querySelector('#commentapp bili-comments, bili-comments')?.shadowRoot); } catch (_) {}
+    try {
+      scanThreads(
+        (document.querySelector('#commentapp bili-comments') || document.querySelector('bili-comments'))?.shadowRoot
+      );
+    } catch (_) {}
     if (commentMap.size === 0) readFromShadowText();
 
     const opts = {
@@ -334,10 +364,14 @@
     const meta     = getVideoMeta();
     const comments = opts.includeComments ? getTopComments(30) : [];
     const md       = buildMarkdown(meta, subtitleLines, comments, opts);
-    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'), { href: url, download: `${safeFilename(meta.title)}.md` });
-    document.body.appendChild(a); a.click();
+    const blob     = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url      = URL.createObjectURL(blob);
+    const a        = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `${safeFilename(meta.title)}.md`,
+    });
+    document.body.appendChild(a);
+    a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
     if (btn) { btn.disabled = false; btn.textContent = '⬇ 导出 Markdown'; }
   }
@@ -346,7 +380,6 @@
   //  样式
   // ═══════════════════════════════════════════════════
   GM_addStyle(`
-    /* ── 基础：实色深色（默认） ── */
     #bsub-panel {
       position: fixed; bottom: 80px; right: 20px; z-index: 99999;
       font-family: 'PingFang SC', 'Hiragino Sans GB', sans-serif;
@@ -370,7 +403,6 @@
     }
     #bsub-panel.expanded { padding: 14px 16px; min-width: 260px; border-radius: 22px; }
 
-    /* ── 磨砂玻璃模式（可选） ── */
     #bsub-panel.glass {
       background: rgba(255,255,255,0.12);
       backdrop-filter: blur(40px) saturate(180%);
@@ -396,7 +428,6 @@
     }
     #bsub-panel.expanded #bsub-body { max-height: 420px; opacity: 1; transform: scaleY(1); margin-bottom: 12px; padding-bottom: 16px; }
 
-    /* ── 磨砂切换按钮 ── */
     #bsub-tools { display:flex; justify-content:flex-end; margin-bottom:8px; }
     #bsub-glass-btn {
       width:22px; height:22px; border-radius:50%;
@@ -419,7 +450,6 @@
     .bsub-opts { display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
     .bsub-opt-row { display:flex; align-items:center; gap:9px; cursor:pointer; }
 
-    /* ── 自定义 Toggle Switch ── */
     .bsub-opt-row input[type=checkbox] {
       -webkit-appearance: none; appearance: none;
       width:28px; height:16px; border-radius:8px;
@@ -459,7 +489,6 @@
     #bsub-export-btn:active { transform:scale(0.97) translateY(0); }
     #bsub-export-btn:disabled { opacity:.55; cursor:default; }
 
-    /* ── 实色浅色 ── */
     #bsub-panel[data-theme="light"] {
       background: rgba(252,252,253,0.97);
       border-color: rgba(0,0,0,0.08);
@@ -467,7 +496,6 @@
       box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
       color: rgba(0,0,0,0.85);
     }
-    /* ── 磨砂浅色 ── */
     #bsub-panel.glass[data-theme="light"] {
       background: rgba(0,0,0,0.07);
       border-color: rgba(0,0,0,0.14);
@@ -504,7 +532,6 @@
     panel.style.visibility = 'hidden';
     let el = document.elementFromPoint(cx, cy);
     panel.style.visibility = '';
-    // 向上找第一个不透明背景色
     while (el && el !== document.documentElement) {
       const bg = getComputedStyle(el).backgroundColor;
       if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
@@ -521,7 +548,7 @@
       }
       el = el.parentElement;
     }
-    panel.dataset.theme = 'dark'; // 兜底：找不到背景色默认暗色
+    panel.dataset.theme = 'dark';
   }
 
   function createPanel() {
@@ -564,13 +591,19 @@
     `;
     document.body.appendChild(p);
     sampleTheme(p);
-    if (localStorage.getItem('bsub-glass') === 'true') p.classList.add('glass');
+
+    // 读取持久化偏好（GM_getValue 替代 localStorage）
+    if (Prefs.get('bsub-glass', false)) p.classList.add('glass');
+
     document.getElementById('bsub-head').addEventListener('click', togglePanel);
-    document.getElementById('bsub-export-btn').addEventListener('click', e => { e.stopPropagation(); doExport(); });
+    document.getElementById('bsub-export-btn').addEventListener('click', e => {
+      e.stopPropagation();
+      doExport();
+    });
     document.getElementById('bsub-glass-btn').addEventListener('click', e => {
       e.stopPropagation();
       const on = p.classList.toggle('glass');
-      localStorage.setItem('bsub-glass', on);
+      Prefs.set('bsub-glass', on);
     });
 
     (function enableDrag(panel) {
@@ -616,9 +649,17 @@
 
   function updatePanel() {
     const sb = document.getElementById('bsub-sub-badge');
-    if (sb) { const n = subtitleLines.length; sb.textContent = n > 0 ? `${n} 行 ✅` : '等待中'; sb.className = n > 0 ? 'bsub-badge bsub-badge-sub' : 'bsub-badge bsub-badge-none'; }
+    if (sb) {
+      const n = subtitleLines.length;
+      sb.textContent = n > 0 ? `${n} 行 ✅` : '等待中';
+      sb.className = n > 0 ? 'bsub-badge bsub-badge-sub' : 'bsub-badge bsub-badge-none';
+    }
     const cb = document.getElementById('bsub-cmt-badge');
-    if (cb) { const n = commentMap.size; cb.textContent = n > 0 ? `${n} 条 ✅` : '等待中'; cb.className = n > 0 ? 'bsub-badge bsub-badge-cmt' : 'bsub-badge bsub-badge-none'; }
+    if (cb) {
+      const n = commentMap.size;
+      cb.textContent = n > 0 ? `${n} 条 ✅` : '等待中';
+      cb.className = n > 0 ? 'bsub-badge bsub-badge-cmt' : 'bsub-badge bsub-badge-none';
+    }
   }
 
   // ═══════════════════════════════════════════════════
@@ -626,9 +667,7 @@
   // ═══════════════════════════════════════════════════
   window.addEventListener('load', () => {
     createPanel();
-    // 开始轮询等待评论区 DOM 出现
     startCommentObserver();
-    console.log('[B站字幕抓取] v1.9 已启动');
   });
 
 })();

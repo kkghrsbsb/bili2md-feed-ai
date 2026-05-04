@@ -37,12 +37,10 @@
 
 ## 安装
 
-脚本暂未发布到 Greasy Fork，请手动安装：
-
 1. 安装浏览器扩展 [Tampermonkey](https://www.tampermonkey.net/)（Chrome / Edge / Firefox 均支持）
-2. 点击 Tampermonkey 图标 → **新建脚本**
-3. 删除编辑器中的默认内容，将 [`bili2md-feed-ai.user.js`](./bili2md-feed-ai.user.js) 的内容完整粘贴进去
-4. `Ctrl + S` 保存，确认脚本已启用
+2. 点击下方链接，在 Greasy Fork 页面点击**安装此脚本**
+
+   👉 [bili2md-feed-ai on Greasy Fork]()
 
 ---
 
