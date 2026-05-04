@@ -40,7 +40,7 @@
 1. 安装浏览器扩展 [Tampermonkey](https://www.tampermonkey.net/)（Chrome / Edge / Firefox 均支持）
 2. 点击下方链接，在 Greasy Fork 页面点击**安装此脚本**
 
-   👉 [bili2md-feed-ai on Greasy Fork]()
+   👉 [bili2md-feed-ai on Greasy Fork](https://greasyfork.org/zh-CN/scripts/576595-bili2md-feed-ai)
 
 ---
 
